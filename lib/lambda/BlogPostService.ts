@@ -1,5 +1,6 @@
 import {
   DynamoDBClient,
+  GetItemCommand,
   PutItemCommand,
   ScanCommand,
 } from '@aws-sdk/client-dynamodb';
@@ -34,5 +35,20 @@ export class BlogPostService {
     const response = await this.dbClient.send(command);
     const items = response.Items ?? [];
     return items.map((item) => unmarshall(item) as BlogPost);
+  }
+
+  async getBlogPostById(id: string): Promise<BlogPost | null> {
+    const params = {
+      TableName: this.tableName,
+      Key: marshall({ id: id }),
+    };
+
+    const command = new GetItemCommand(params);
+    const response = await this.dbClient.send(command);
+    const item = response.Item;
+    if (!item) {
+      return null;
+    }
+    return unmarshall(item) as BlogPost;
   }
 }
