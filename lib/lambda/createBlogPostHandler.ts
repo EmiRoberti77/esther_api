@@ -61,7 +61,9 @@ export const blogpostgetById = async (
 
   const id = event.pathParameters!.id!;
 
-  response = ApigateWayProxyResult(200, id);
+  const item: BlogPost | null = await blogPostService.getBlogPostById(id);
+
+  response = ApigateWayProxyResult(200, item);
   addCorsHeader(response);
   return response;
 };
