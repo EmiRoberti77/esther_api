@@ -27,6 +27,8 @@ export class RestApiStack extends Stack {
     const BLOGPOSTS = 'blogposts';
     const blogPostTable = 'blogPostTable';
     const blogpostgetById = 'blogpostgetById';
+    const blogPostDeleteHandler = 'blogPostDeleteHandler';
+    const apiDocsHandler = 'apiDocsHandler';
 
     //create path to poat lambda
     const pathToPostBlogLambda = join(
@@ -73,6 +75,35 @@ export class RestApiStack extends Stack {
       table.tableName
     );
 
+    //create delete blogpost Lambda
+    const deleteBlogPostLambda = this.createLambda(
+      pathToPostBlogLambda,
+      blogPostDeleteHandler,
+      blogPostDeleteHandler,
+      table.tableName
+    );
+
+    //create api docs handler for Swagger
+    const apiDocsLambda = this.createApiDocLambda(
+      pathToPostBlogLambda,
+      apiDocsHandler,
+      apiDocsHandler,
+      api.restApiId
+    );
+
+    const policy = new PolicyStatement({
+      actions: ['apigateway:GET'],
+      resources: ['*'],
+    });
+
+    apiDocsLambda.role?.addToPrincipalPolicy(policy);
+    const apiDocPath = api.root.addResource('api-docs');
+    apiDocPath.addMethod('GET', new LambdaIntegration(apiDocsLambda), {
+      requestParameters: {
+        'method.request.querystring.ui': false,
+      },
+    });
+
     //Cors settings
     const optionsWithCors: ResourceOptions = {
       defaultCorsPreflightOptions: {
@@ -85,6 +116,7 @@ export class RestApiStack extends Stack {
     table.grantFullAccess(createBlogPostLambda);
     table.grantReadData(getLambdaByName);
     table.grantReadData(getBlogPostById);
+    table.grantWriteData(deleteBlogPostLambda);
 
     createBlogPostLambda.addToRolePolicy(
       new PolicyStatement({
@@ -110,12 +142,26 @@ export class RestApiStack extends Stack {
       })
     );
 
+    deleteBlogPostLambda.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        resources: [table.tableArn],
+        actions: ['*'],
+      })
+    );
+
     //attach a path to api /blogposts
     const blogPostPath = api.root.addResource(BLOGPOSTS, optionsWithCors);
     blogPostPath.addMethod('POST', new LambdaIntegration(createBlogPostLambda));
     blogPostPath.addMethod('GET', new LambdaIntegration(getLambdaByName));
+
     const blogPostById = blogPostPath.addResource('{id}');
+
     blogPostById.addMethod('GET', new LambdaIntegration(getBlogPostById));
+    blogPostById.addMethod(
+      'DELETE',
+      new LambdaIntegration(deleteBlogPostLambda)
+    );
   }
 
   createTable(blogPostTable: string) {
@@ -147,5 +193,24 @@ export class RestApiStack extends Stack {
     });
 
     return createBlogPostLambda;
+  }
+
+  createApiDocLambda(
+    entry: string,
+    handler: string,
+    functionName: string,
+    restApiId: string
+  ) {
+    const apiDocsLambda = new NodejsFunction(this, functionName, {
+      entry,
+      handler,
+      functionName,
+      runtime: Runtime.NODEJS_18_X,
+      environment: {
+        API_ID: restApiId,
+      },
+    });
+
+    return apiDocsLambda;
   }
 }

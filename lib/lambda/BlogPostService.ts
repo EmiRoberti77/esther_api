@@ -1,4 +1,5 @@
 import {
+  DeleteItemCommand,
   DynamoDBClient,
   GetItemCommand,
   PutItemCommand,
@@ -50,5 +51,15 @@ export class BlogPostService {
       return null;
     }
     return unmarshall(item) as BlogPost;
+  }
+
+  async deleteBogPostById(id: string): Promise<void> {
+    const params = {
+      TableName: this.tableName,
+      Key: marshall({ id: id }),
+    };
+
+    const command = new DeleteItemCommand(params);
+    await this.dbClient.send(command);
   }
 }
